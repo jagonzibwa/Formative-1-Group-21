@@ -56,3 +56,32 @@ def fetch_history(api_url: str, source: str, end: datetime, hours: int) -> list[
                    start=start.isoformat(), end=end.isoformat(), limit=10000)
     return data["records"]
 
+# --------------------------------------------------------------------------- #
+# 2. Preprocess
+# --------------------------------------------------------------------------- #
+def build_grid(records: list[dict]) -> pd.DataFrame:
+    raw = pp.records_to_raw_frame(records)
+    return pp.to_hourly_grid(pp.clean_raw(raw))
+
+
+def features_for(grid: pd.DataFrame, target_ts: pd.Timestamp | None) -> pd.DataFrame:
+    """Feature row for `target_ts` (back-test) or for the hour after the last record."""
+    if target_ts is None:
+        return pp.next_hour_features(grid)
+    g = grid.copy()
+    g.loc[target_ts, pp.TARGET] = np.nan        # hide the actual value from the features
+    return pp.build_features(g, dropna=False).loc[[target_ts]]
+
+
+# --------------------------------------------------------------------------- #
+# 3. Load model
+# --------------------------------------------------------------------------- #
+def load_model():
+    if not MODEL_PATH.exists():
+        sys.exit(f"ERROR: {MODEL_PATH} not found - run notebooks/02_model_training.ipynb first")
+    model = joblib.load(MODEL_PATH)
+    meta = json.loads(MODEL_METADATA_PATH.read_text(encoding="utf-8"))
+    if meta["features"] != pp.FEATURE_COLUMNS:
+        sys.exit("ERROR: model features do not match src/preprocessing.FEATURE_COLUMNS - retrain the model")
+    return model, meta
+
