@@ -85,3 +85,82 @@ def load_model():
         sys.exit("ERROR: model features do not match src/preprocessing.FEATURE_COLUMNS - retrain the model")
     return model, meta
 
+# --------------------------------------------------------------------------- #
+# 4. Predict
+# --------------------------------------------------------------------------- #
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--source", choices=["mongo", "sql"], default="mongo", help="database behind the API")
+    ap.add_argument("--api-url", default=API_URL)
+    ap.add_argument("--at", help="back-test: forecast this hour (ISO time) from the history before it")
+    ap.add_argument("--history-hours", type=int, default=HISTORY_HOURS)
+    args = ap.parse_args()
+
+    print(f"[1/4] Fetching data from {args.api_url}/{args.source}/records ...")
+    if args.at:
+        target_ts = pd.Timestamp(args.at).floor("h")
+        records = fetch_history(args.api_url, args.source, target_ts.to_pydatetime(), args.history_hours + 1)
+        if not records or pd.Timestamp(records[-1]["date_time"]) != target_ts:
+            sys.exit(f"ERROR: no record at {target_ts} to back-test against")
+        actual = records[-1]["traffic_volume"]
+    else:
+        latest = api_get(args.api_url, f"/{args.source}/records/latest")
+        print(f"      latest record: {latest['date_time']}  volume={latest['traffic_volume']}")
+        records = fetch_history(args.api_url, args.source, datetime.fromisoformat(latest["date_time"]),
+                                args.history_hours)
+        target_ts, actual = None, None
+    print(f"      fetched {len(records)} hourly records "
+          f"({records[0]['date_time']} -> {records[-1]['date_time']})")
+
+    print("[2/4] Preprocessing (clean -> hourly grid -> lag / moving-average features) ...")
+    grid = build_grid(records)
+    print(f"      grid: {len(grid)} hours, {int(grid.is_imputed.sum())} imputed, "
+          f"{int(grid[pp.TARGET].isna().sum())} still missing")
+    X = features_for(grid, target_ts)
+    missing = X[pp.FEATURE_COLUMNS].columns[X[pp.FEATURE_COLUMNS].isna().any()].tolist()
+    if missing:
+        sys.exit(f"ERROR: not enough continuous history to build {missing}. "
+                 f"Try a larger --history-hours or a time without long data gaps.")
+
+    print("[3/4] Loading model ...")
+    model, meta = load_model()
+    print(f"      {meta['model']} (experiment {meta['experiment']}, test MAE {meta['test_metrics']['test_mae']} veh/h)")
+
+    print("[4/4] Forecasting ...")
+    pred = float(model.predict(X[pp.FEATURE_COLUMNS])[0])
+    ts = X.index[0]
+    row = X.iloc[0]
+    result = {
+        "forecast_for": ts.isoformat(),
+        "predicted_traffic_volume": round(pred),
+        "source": args.source,
+        "model": meta["model"],
+        "context": {
+            "last_hour_volume": None if pd.isna(row["lag_1"]) else int(row["lag_1"]),
+            "same_hour_last_week": None if pd.isna(row["lag_168"]) else int(row["lag_168"]),
+            "avg_last_24h": round(float(row["roll_mean_24"])),
+            "weather_used": row["weather_main"],
+            "is_holiday": bool(row["is_holiday"]),
+            "weather_assumption": "observed weather for that hour" if target_ts is not None
+                                  else "persistence (latest observed weather carried forward)",
+        },
+    }
+    if actual is not None:
+        result["actual_traffic_volume"] = int(actual)
+        result["absolute_error"] = round(abs(pred - actual))
+
+    print("\n" + "=" * 60)
+    print(f" Forecast for {ts:%A %d %b %Y, %H:%M}")
+    print(f"   predicted traffic volume : {round(pred):>6,} vehicles/hour")
+    if actual is not None:
+        print(f"   actual traffic volume    : {int(actual):>6,} vehicles/hour  (error {abs(pred - actual):,.0f})")
+    print(f"   previous hour            : {result['context']['last_hour_volume']:>6,}")
+    print(f"   same hour last week      : {result['context']['same_hour_last_week']:>6,}")
+    print("=" * 60)
+
+    OUTPUT_PATH.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    print(f"Saved -> {OUTPUT_PATH.relative_to(ROOT)}")
+
+
+if __name__ == "__main__":
+    main()

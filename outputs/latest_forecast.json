@@ -1,0 +1,14 @@
+{
+  "forecast_for": "2018-10-01T00:00:00",
+  "predicted_traffic_volume": 542,
+  "source": "mongo",
+  "model": "Random Forest (tuned)",
+  "context": {
+    "last_hour_volume": 954,
+    "same_hour_last_week": 509,
+    "avg_last_24h": 2504,
+    "weather_used": "Clouds",
+    "is_holiday": false,
+    "weather_assumption": "persistence (latest observed weather carried forward)"
+  }
+}
