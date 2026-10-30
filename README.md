@@ -122,6 +122,22 @@ The MySQL user in `.env` needs privileges on `metro_traffic`, e.g.
 
 ---
 
+### Task 3 — API
+The same endpoints exist under `/sql/records` (MySQL) and `/mongo/records` (MongoDB), with one shared record schema:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/{db}/records` | Create an hourly record (409 if the hour exists) |
+| GET | `/{db}/records?limit=&offset=` | List, newest first |
+| GET | `/{db}/records/latest` | **Latest record** |
+| GET | `/{db}/records/range?start=&end=` | **Records by date range** |
+| GET | `/{db}/records/{id}` | One record |
+| PUT | `/{db}/records/{id}` | Update the fields sent |
+| DELETE | `/{db}/records/{id}` | Delete (SQL cascades weather links) |
+| GET | `/` | Health check with record counts |
+
+Inputs are validated by Pydantic (e.g. cloud cover 0–100, non-negative volume). MongoDB also enforces its own `$jsonSchema`. `scripts/test_api.py` runs 23 checks across both databases ([log](outputs/api_test_results.md))
+
 ## Repository structure (current)
 ```
 ├── data/
@@ -165,7 +181,7 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda_preprocessi
 | Task 1A/B — EDA, preprocessing, analytical questions |  in this repository |
 | Task 1C — Model training and experiments | to be added |
 | Task 2 — SQL and MongoDB databases | in this repository |
-| Task 3 — CRUD and time-series API | to be added |
+| Task 3 — CRUD and time-series API | in this repository |
 | Task 4 — Prediction script | to be added |
 
 ## Data source
