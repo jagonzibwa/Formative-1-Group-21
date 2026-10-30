@@ -1,0 +1,6 @@
+date_time,traffic_volume,holiday,temp_c,weather
+2018-09-30 23:00:00,954,-,9.0,overcast clouds
+2018-09-30 22:00:00,1450,-,8.9,overcast clouds
+2018-09-30 21:00:00,2159,-,9.6,proximity thunderstorm
+2018-09-30 20:00:00,2781,-,9.6,overcast clouds
+2018-09-30 19:00:00,3543,-,10.3,broken clouds
