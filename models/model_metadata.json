@@ -1,0 +1,149 @@
+{
+  "target": "traffic_volume",
+  "model": "HistGradientBoostingRegressor",
+  "experiment": "HistGradientBoostingRegressor",
+  "features": [
+    "hour",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "is_holiday",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos",
+    "temp_c",
+    "rain_1h",
+    "snow_1h",
+    "clouds_all",
+    "weather_clear",
+    "weather_clouds",
+    "weather_drizzle",
+    "weather_fog",
+    "weather_haze",
+    "weather_mist",
+    "weather_rain",
+    "weather_smoke",
+    "weather_snow",
+    "weather_squall",
+    "weather_thunderstorm",
+    "lag_1",
+    "lag_2",
+    "lag_3",
+    "lag_24",
+    "lag_168",
+    "roll_mean_3",
+    "roll_mean_24",
+    "roll_mean_168",
+    "roll_std_24"
+  ],
+  "selected_model": "HistGradientBoostingRegressor",
+  "best_params": {
+    "learning_rate": 0.1,
+    "max_iter": 200,
+    "max_leaf_nodes": 15
+  },
+  "feature_columns": [
+    "hour",
+    "day_of_week",
+    "month",
+    "is_weekend",
+    "is_holiday",
+    "hour_sin",
+    "hour_cos",
+    "dow_sin",
+    "dow_cos",
+    "temp_c",
+    "rain_1h",
+    "snow_1h",
+    "clouds_all",
+    "weather_clear",
+    "weather_clouds",
+    "weather_drizzle",
+    "weather_fog",
+    "weather_haze",
+    "weather_mist",
+    "weather_rain",
+    "weather_smoke",
+    "weather_snow",
+    "weather_squall",
+    "weather_thunderstorm",
+    "lag_1",
+    "lag_2",
+    "lag_3",
+    "lag_24",
+    "lag_168",
+    "roll_mean_3",
+    "roll_mean_24",
+    "roll_mean_168",
+    "roll_std_24"
+  ],
+  "training_rows": 36568,
+  "selection_train_start": "2012-10-09T09:00:00",
+  "selection_train_end": "2017-11-22T23:00:00",
+  "model_selection": "lowest cross-validation MAE on the training period",
+  "holdout_used_for_model_selection": false,
+  "test_rows": 7314,
+  "training_start": "2012-10-09T09:00:00",
+  "training_end": "2018-09-30T23:00:00",
+  "test_start": "2017-11-23T00:00:00",
+  "test_end": "2018-09-30T23:00:00",
+  "weather_feature_policy": "Weather predictors are shifted one hour so only the latest observed weather is used for a one-step-ahead forecast.",
+  "cross_validation": {
+    "method": "TimeSeriesSplit",
+    "n_splits": 3,
+    "scoring": "negative mean absolute error"
+  },
+  "experiments": [
+    {
+      "name": "RandomForestRegressor",
+      "best_params": {
+        "max_depth": null,
+        "min_samples_leaf": 3,
+        "n_estimators": 80
+      },
+      "cv_mae": 182.48531691021762,
+      "test_metrics": {
+        "mae": 150.64127175027457,
+        "rmse": 240.3161155407199,
+        "r2": 0.9850355911601655
+      }
+    },
+    {
+      "name": "HistGradientBoostingRegressor",
+      "best_params": {
+        "learning_rate": 0.1,
+        "max_iter": 200,
+        "max_leaf_nodes": 15
+      },
+      "cv_mae": 180.77473137323963,
+      "test_metrics": {
+        "mae": 154.15031317540175,
+        "rmse": 236.68542233742318,
+        "r2": 0.9854843397589191
+      }
+    },
+    {
+      "name": "SeasonalNaiveLag168",
+      "best_params": {
+        "forecast": "lag_168"
+      },
+      "cv_mae": null,
+      "test_metrics": {
+        "mae": 366.3705906480722,
+        "rmse": 702.1971121055574,
+        "r2": 0.8722350138843723
+      }
+    }
+  ],
+  "selected_test_metrics": {
+    "mae": 154.15031317540175,
+    "rmse": 236.68542233742318,
+    "r2": 0.9854843397589191
+  },
+  "test_metrics": {
+    "test_mae": 154.15031317540175,
+    "test_rmse": 236.68542233742318,
+    "test_r2": 0.9854843397589191
+  }
+}

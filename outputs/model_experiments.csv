@@ -1,0 +1,4 @@
+experiment,best_params,cv_mae,mae,rmse,r2
+RandomForestRegressor,"{""max_depth"": null, ""min_samples_leaf"": 3, ""n_estimators"": 80}",182.48531691021762,150.64127175027457,240.3161155407199,0.9850355911601655
+HistGradientBoostingRegressor,"{""learning_rate"": 0.1, ""max_iter"": 200, ""max_leaf_nodes"": 15}",180.77473137323963,154.15031317540175,236.68542233742318,0.9854843397589191
+SeasonalNaiveLag168,"{""forecast"": ""lag_168""}",,366.3705906480722,702.1971121055574,0.8722350138843723

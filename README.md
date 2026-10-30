@@ -50,6 +50,45 @@ Each question has at least one chart (in [`outputs/figures/`](outputs/figures/))
 
 ---
 
+## Task 1C — Model training and experiments
+
+Run the time-ordered training and tuning workflow from the repository root:
+
+```bash
+python -m scripts.train_model
+```
+
+The workflow reuses `src/preprocessing.py` and its lag/moving-average feature
+columns. It shifts weather inputs by one hour to use only information available
+before the forecast hour. An earlier 80% of model-ready observations is used
+for hyperparameter tuning with three expanding-window `TimeSeriesSplit` folds;
+the later 20% is held out for evaluation. Model selection uses training-fold
+CV MAE, not holdout performance. The chosen estimator is then refit on all
+observations for the Task 4 script. A lag-168 seasonal-naive baseline is
+included for comparison.
+
+| Experiment | Tuned settings | CV MAE | Holdout MAE | Holdout RMSE | Holdout R² |
+|---|---|---:|---:|---:|---:|
+| Random Forest | `n_estimators=80`, `max_depth=None`, `min_samples_leaf=3` | 182.49 | 150.64 | 240.32 | 0.9850 |
+| HistGradientBoosting | `learning_rate=0.1`, `max_iter=200`, `max_leaf_nodes=15` | **180.77** | 154.15 | **236.69** | **0.9855** |
+| Seasonal naive | `lag_168` | — | 366.37 | 702.20 | 0.8722 |
+
+HistGradientBoosting was selected because it had the lowest cross-validation
+MAE. Both tuned models substantially beat the weekly seasonal-naive baseline.
+Metrics are vehicles per hour; the full generated experiment table is in
+[`outputs/model_experiments.md`](outputs/model_experiments.md), with machine
+readable results in [`outputs/model_experiments.csv`](outputs/model_experiments.csv).
+The selected model and metadata are saved to `models/` and are consumed by
+the Task 4 prediction script.
+
+Run the focused training tests with:
+
+```bash
+python -m pytest tests/test_modeling.py
+```
+
+---
+
 ## Task 2 — Databases (MySQL and MongoDB)
 Both databases hold the **raw recorded values** (not the cleaned features). Cleaning stays in `src/preprocessing.py`, so the Task 4 script can fetch raw records from the API and preprocess them exactly like the training data.
 
@@ -179,7 +218,7 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda_preprocessi
 | Part | Status |
 |---|---|
 | Task 1A/B — EDA, preprocessing, analytical questions |  in this repository |
-| Task 1C — Model training and experiments | to be added |
+| Task 1C — Model training and experiments | implemented; run `python -m scripts.train_model` |
 | Task 2 — SQL and MongoDB databases | in this repository |
 | Task 3 — CRUD and time-series API | in this repository |
 | Task 4 — Prediction script | to be added |
