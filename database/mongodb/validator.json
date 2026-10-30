@@ -1,0 +1,45 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "title": "traffic_readings: one document per hour",
+    "required": ["date_time", "traffic_volume", "temp", "rain_1h", "snow_1h", "clouds_all", "weather"],
+    "additionalProperties": true,
+    "properties": {
+      "date_time": {
+        "bsonType": "date",
+        "description": "Start of the hour (local time). Unique."
+      },
+      "traffic_volume": {
+        "bsonType": "int",
+        "minimum": 0,
+        "maximum": 10000,
+        "description": "Westbound vehicles counted in the hour (the forecast target)."
+      },
+      "holiday": {
+        "bsonType": ["string", "null"],
+        "description": "Holiday name for every hour of a holiday date, otherwise null."
+      },
+      "temp":       { "bsonType": "number", "minimum": 0, "description": "Kelvin, averaged over the hour's weather reports." },
+      "rain_1h":    { "bsonType": "number", "minimum": 0, "description": "Rain in mm during the hour." },
+      "snow_1h":    { "bsonType": "number", "minimum": 0, "description": "Snow in mm during the hour." },
+      "clouds_all": { "bsonType": "int", "minimum": 0, "maximum": 100, "description": "Cloud cover in %." },
+      "weather": {
+        "bsonType": "array",
+        "minItems": 1,
+        "description": "Every weather condition reported in the hour (embedded, 1-n).",
+        "items": {
+          "bsonType": "object",
+          "required": ["main", "description"],
+          "properties": {
+            "main":        { "bsonType": "string" },
+            "description": { "bsonType": "string" }
+          }
+        }
+      },
+      "source": {
+        "enum": ["csv_import", "api"],
+        "description": "Where the document came from."
+      }
+    }
+  }
+}

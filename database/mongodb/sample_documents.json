@@ -1,0 +1,94 @@
+[
+  {
+    "_id": {
+      "$oid": "6ae49f7e36629569dfda0f9a"
+    },
+    "date_time": {
+      "$date": "2012-10-02T09:00:00Z"
+    },
+    "traffic_volume": 5545,
+    "holiday": null,
+    "temp": 288.28,
+    "rain_1h": 0.0,
+    "snow_1h": 0.0,
+    "clouds_all": 40,
+    "weather": [
+      {
+        "main": "Clouds",
+        "description": "scattered clouds"
+      }
+    ],
+    "source": "csv_import"
+  },
+  {
+    "_id": {
+      "$oid": "6ae49f7e36629569dfda1018"
+    },
+    "date_time": {
+      "$date": "2012-10-08T00:00:00Z"
+    },
+    "traffic_volume": 455,
+    "holiday": "Columbus Day",
+    "temp": 273.08,
+    "rain_1h": 0.0,
+    "snow_1h": 0.0,
+    "clouds_all": 20,
+    "weather": [
+      {
+        "main": "Clouds",
+        "description": "few clouds"
+      }
+    ],
+    "source": "csv_import"
+  },
+  {
+    "_id": {
+      "$oid": "6ae49f7e36629569dfda10a4"
+    },
+    "date_time": {
+      "$date": "2012-10-14T09:00:00Z"
+    },
+    "traffic_volume": 2685,
+    "holiday": null,
+    "temp": 282.43,
+    "rain_1h": 0.0,
+    "snow_1h": 0.0,
+    "clouds_all": 57,
+    "weather": [
+      {
+        "main": "Drizzle",
+        "description": "light intensity drizzle"
+      },
+      {
+        "main": "Haze",
+        "description": "haze"
+      },
+      {
+        "main": "Mist",
+        "description": "mist"
+      }
+    ],
+    "source": "csv_import"
+  },
+  {
+    "_id": {
+      "$oid": "6ae49f7e36629569dfdaae18"
+    },
+    "date_time": {
+      "$date": "2018-09-30T23:00:00Z"
+    },
+    "traffic_volume": 954,
+    "holiday": null,
+    "temp": 282.12,
+    "rain_1h": 0.0,
+    "snow_1h": 0.0,
+    "clouds_all": 90,
+    "weather": [
+      {
+        "main": "Clouds",
+        "description": "overcast clouds"
+      }
+    ],
+    "source": "csv_import"
+  }
+]
