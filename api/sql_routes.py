@@ -1,13 +1,17 @@
-"""CRUD + time-series endpoints backed by MySQL.
+"""CRUD + time-series endpoints backed by MySQL (schema: database/mysql/schema.sql).
+
+Reads use the view `v_hourly_readings`, which already returns one row per hour
+in the API record shape (weather values averaged over the hour's reports).
 
 Writes touch up to four tables in one transaction:
-    traffic_observations  (the hourly row)
-    observation_weather   (its weather conditions)
-    weather_conditions    (created on first use of a new condition)
+    traffic_readings      (the hourly row: date_time, traffic_volume, holiday_id)
+    weather_observations  (one row per weather condition reported in that hour)
+    weather_conditions    (created on first use of a new main/description pair)
     holidays              (created on first use of a new holiday date)
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any, Optional
 
@@ -22,48 +26,45 @@ from .schemas import (DeleteResult, RecordList, TrafficRecord, TrafficRecordCrea
 
 router = APIRouter(prefix="/sql/records", tags=["SQL (MySQL)"])
 
-_SELECT = """
-    SELECT o.observation_id, o.date_time, o.traffic_volume, o.temp, o.rain_1h,
-           o.snow_1h, o.clouds_all, h.holiday_name
-    FROM traffic_observations o
-    LEFT JOIN holidays h ON h.holiday_id = o.holiday_id
-"""
+WEATHER_FIELDS = ["temp", "rain_1h", "snow_1h", "clouds_all", "weather"]
 
 
 # --------------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------------- #
 def _fetch(conn: Connection, where: str = "", params: Optional[dict] = None,
-           order: str = "o.date_time DESC", limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-    """Read observations, then their weather conditions in one extra query."""
-    sql = f"{_SELECT} {where} ORDER BY {order} LIMIT :limit OFFSET :offset"
-    rows = conn.execute(text(sql), {**(params or {}), "limit": limit, "offset": offset}).mappings().all()
-    if not rows:
+           order: str = "r.date_time DESC", limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+    """Pick the reading ids on the indexed base table, then read those hours from the view."""
+    sql = f"SELECT r.reading_id FROM traffic_readings r {where} ORDER BY {order} LIMIT :limit OFFSET :offset"
+    ids = conn.execute(text(sql), {**(params or {}), "limit": limit, "offset": offset}).scalars().all()
+    if not ids:
         return []
-    ids = [r["observation_id"] for r in rows]
-    cond_sql = text("""
-        SELECT ow.observation_id, wc.weather_main, wc.weather_description
-        FROM observation_weather ow JOIN weather_conditions wc ON wc.condition_id = ow.condition_id
-        WHERE ow.observation_id IN :ids ORDER BY ow.observation_id, ow.condition_rank
+    view_sql = text("""
+        SELECT reading_id, date_time, traffic_volume, holiday, temp, rain_1h, snow_1h, clouds_all, weather
+        FROM v_hourly_readings WHERE reading_id IN :ids
     """).bindparams(bindparam("ids", expanding=True))
-    weather: dict[int, list] = {i: [] for i in ids}
-    for c in conn.execute(cond_sql, {"ids": ids}).mappings():
-        weather[c["observation_id"]].append({"main": c["weather_main"], "description": c["weather_description"]})
-    return [{
-        "id": r["observation_id"],
-        "date_time": r["date_time"],
-        "traffic_volume": r["traffic_volume"],
-        "temp": None if r["temp"] is None else float(r["temp"]),
-        "rain_1h": float(r["rain_1h"]),
-        "snow_1h": float(r["snow_1h"]),
-        "clouds_all": r["clouds_all"],
-        "holiday": r["holiday_name"],
-        "weather": weather[r["observation_id"]],
-    } for r in rows]
+    rows = {r["reading_id"]: r for r in conn.execute(view_sql, {"ids": list(ids)}).mappings()}
+    records = []
+    for i in ids:
+        r = rows[i]
+        weather = json.loads(r["weather"]) if isinstance(r["weather"], str) else (r["weather"] or [])
+        records.append({
+            "id": r["reading_id"],
+            "date_time": r["date_time"],
+            "traffic_volume": r["traffic_volume"],
+            "temp": None if r["temp"] is None else float(r["temp"]),
+            "rain_1h": float(r["rain_1h"] or 0),
+            "snow_1h": float(r["snow_1h"] or 0),
+            "clouds_all": None if r["clouds_all"] is None else int(r["clouds_all"]),
+            "holiday": r["holiday"],
+            # LEFT JOIN gives {main: null} when an hour has no observations
+            "weather": [w for w in weather if w.get("main") is not None],
+        })
+    return records
 
 
 def _get_one(conn: Connection, record_id: int) -> dict[str, Any]:
-    rows = _fetch(conn, "WHERE o.observation_id = :id", {"id": record_id}, limit=1)
+    rows = _fetch(conn, "WHERE r.reading_id = :id", {"id": record_id}, limit=1)
     if not rows:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Record {record_id} not found")
     return rows[0]
@@ -80,24 +81,27 @@ def _holiday_id(conn: Connection, name: Optional[str], ts: datetime) -> Optional
     return conn.execute(text("SELECT holiday_id FROM holidays WHERE holiday_date = :d"), {"d": ts.date()}).scalar_one()
 
 
-def _set_weather(conn: Connection, observation_id: int, conditions: list[dict]) -> None:
-    """Replace the weather conditions of an observation (get-or-create lookups)."""
-    conn.execute(text("DELETE FROM observation_weather WHERE observation_id = :id"), {"id": observation_id})
+def _set_weather(conn: Connection, reading_id: int, rec: dict[str, Any]) -> None:
+    """Replace the weather observations of a reading: one row per condition,
+    each carrying the hour's temp / rain / snow / clouds values."""
+    conn.execute(text("DELETE FROM weather_observations WHERE reading_id = :id"), {"id": reading_id})
     seen = set()
-    for rank, c in enumerate(conditions, start=1):
+    for c in rec["weather"]:
         key = (c["main"], c["description"])
         if key in seen:
             continue
         seen.add(key)
         conn.execute(text("""
-            INSERT IGNORE INTO weather_conditions (weather_main, weather_description) VALUES (:m, :d)
+            INSERT IGNORE INTO weather_conditions (main, description) VALUES (:m, :d)
         """), {"m": c["main"], "d": c["description"]})
         cid = conn.execute(text("""
-            SELECT condition_id FROM weather_conditions WHERE weather_main = :m AND weather_description = :d
+            SELECT condition_id FROM weather_conditions WHERE main = :m AND description = :d
         """), {"m": c["main"], "d": c["description"]}).scalar_one()
         conn.execute(text("""
-            INSERT INTO observation_weather (observation_id, condition_id, condition_rank) VALUES (:o, :c, :r)
-        """), {"o": observation_id, "c": cid, "r": rank})
+            INSERT INTO weather_observations (reading_id, condition_id, temp, rain_1h, snow_1h, clouds_all)
+            VALUES (:r, :c, :temp, :rain_1h, :snow_1h, :clouds_all)
+        """), {"r": reading_id, "c": cid, "temp": rec["temp"], "rain_1h": rec["rain_1h"],
+               "snow_1h": rec["snow_1h"], "clouds_all": rec["clouds_all"]})
 
 
 # --------------------------------------------------------------------------- #
@@ -111,12 +115,11 @@ def create_record(body: TrafficRecordCreate):
         with sql_engine().begin() as conn:
             hid = _holiday_id(conn, data["holiday"], data["date_time"])
             result = conn.execute(text("""
-                INSERT INTO traffic_observations
-                    (date_time, traffic_volume, temp, rain_1h, snow_1h, clouds_all, holiday_id)
-                VALUES (:date_time, :traffic_volume, :temp, :rain_1h, :snow_1h, :clouds_all, :hid)
+                INSERT INTO traffic_readings (date_time, traffic_volume, holiday_id)
+                VALUES (:date_time, :traffic_volume, :hid)
             """), {**data, "hid": hid})
             new_id = result.lastrowid
-            _set_weather(conn, new_id, data["weather"])
+            _set_weather(conn, new_id, data)
             return _get_one(conn, new_id)
     except IntegrityError:
         raise HTTPException(status.HTTP_409_CONFLICT, f"A record for {data['date_time']} already exists")
@@ -148,13 +151,13 @@ def records_in_range(start: datetime = Query(..., examples=["2018-09-24T00:00:00
     if start > end:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "start must be <= end")
     with sql_engine().connect() as conn:
-        recs = _fetch(conn, "WHERE o.date_time BETWEEN :start AND :end",
+        recs = _fetch(conn, "WHERE r.date_time BETWEEN :start AND :end",
                       {"start": start.replace(tzinfo=None), "end": end.replace(tzinfo=None)},
-                      order="o.date_time ASC", limit=limit)
+                      order="r.date_time ASC", limit=limit)
     return {"count": len(recs), "records": recs}
 
 
-@router.get("/{record_id}", response_model=TrafficRecord, summary="Get one record by id")
+@router.get("/{record_id}", response_model=TrafficRecord, summary="Get one record by reading_id")
 def get_record(record_id: int):
     with sql_engine().connect() as conn:
         return _get_one(conn, record_id)
@@ -172,14 +175,14 @@ def update_record(record_id: int, body: TrafficRecordUpdate):
         with sql_engine().begin() as conn:
             current = _get_one(conn, record_id)
             merged = {**current, **changes}
-            sets = {k: merged[k] for k in ["date_time", "traffic_volume", "temp", "rain_1h", "snow_1h", "clouds_all"]}
+            sets = {k: merged[k] for k in ["date_time", "traffic_volume"]}
             if "holiday" in changes or "date_time" in changes:
                 sets["holiday_id"] = _holiday_id(conn, merged["holiday"], merged["date_time"])
             assignments = ", ".join(f"{k} = :{k}" for k in sets)
-            conn.execute(text(f"UPDATE traffic_observations SET {assignments} WHERE observation_id = :id"),
+            conn.execute(text(f"UPDATE traffic_readings SET {assignments} WHERE reading_id = :id"),
                          {**sets, "id": record_id})
-            if "weather" in changes:
-                _set_weather(conn, record_id, merged["weather"])
+            if any(f in changes for f in WEATHER_FIELDS):
+                _set_weather(conn, record_id, merged)
             return _get_one(conn, record_id)
     except IntegrityError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Another record already uses that date_time")
@@ -192,6 +195,6 @@ def update_record(record_id: int, body: TrafficRecordUpdate):
 def delete_record(record_id: int):
     with sql_engine().begin() as conn:
         current = _get_one(conn, record_id)
-        # observation_weather rows are removed by ON DELETE CASCADE
-        conn.execute(text("DELETE FROM traffic_observations WHERE observation_id = :id"), {"id": record_id})
+        # weather_observations rows are removed by ON DELETE CASCADE
+        conn.execute(text("DELETE FROM traffic_readings WHERE reading_id = :id"), {"id": record_id})
     return {"deleted": True, "record": current}
