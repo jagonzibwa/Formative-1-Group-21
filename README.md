@@ -217,11 +217,11 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda_preprocessi
 
 | Part | Status |
 |---|---|
-| Task 1A/B — EDA, preprocessing, analytical questions |  in this repository |
-| Task 1C — Model training and experiments | implemented; run `python -m scripts.train_model` |
-| Task 2 — SQL and MongoDB databases | in this repository |
-| Task 3 — CRUD and time-series API | in this repository |
-| Task 4 — Prediction script | to be added |
+| Task 1A/B — EDA, preprocessing, analytical questions | Implemented; see the notebook and `src/preprocessing.py`. |
+| Task 1C — Model training and experiments | Implemented; run `python -m scripts.train_model`. |
+| Task 2 — SQL and MongoDB databases | Implemented; see `database/` and the database loader/query scripts. |
+| Task 3 — CRUD and time-series API | Implemented; see the API section and `api/` application. |
+| Task 4 — Prediction script | Implemented in `scripts/predict.py`; it uses the SQL or MongoDB API endpoints. |
 
 ## Data source
 Hogue, J. (2019). *Metro Interstate Traffic Volume* [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5X60B — CC BY 4.0.
