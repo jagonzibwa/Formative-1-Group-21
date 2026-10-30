@@ -21,4 +21,12 @@ tabulate>=0.9
 # Task 1C/4 - Model training and prediction
 scikit-learn>=1.6,<2
 joblib>=1.4,<2
+
+# Task 3 - API
+fastapi>=0.110
+uvicorn>=0.29
+pydantic>=2.6
+cryptography>=42.0
+
+# Shared by API clients and the prediction script
 requests>=2.31,<3
