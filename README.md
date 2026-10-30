@@ -75,7 +75,7 @@ jupyter nbconvert --to notebook --execute --inplace notebooks/01_eda_preprocessi
 
 | Part | Status |
 |---|---|
-| Task 1A/B — EDA, preprocessing, analytical questions | ✅ in this repository |
+| Task 1A/B — EDA, preprocessing, analytical questions |  in this repository |
 | Task 1C — Model training and experiments | to be added |
 | Task 2 — SQL and MongoDB databases | to be added |
 | Task 3 — CRUD and time-series API | to be added |
